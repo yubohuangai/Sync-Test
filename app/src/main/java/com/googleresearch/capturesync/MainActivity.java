@@ -37,6 +37,9 @@ import android.hardware.camera2.CaptureRequest;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.CamcorderProfile;
 import android.media.MediaCodec;
+import android.media.MediaCodecInfo;
+import android.media.MediaFormat;
+import android.media.MediaMuxer;
 import android.media.MediaRecorder;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
@@ -67,6 +70,7 @@ import com.googleresearch.capturesync.softwaresync.phasealign.PhaseConfig;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -89,6 +93,10 @@ import org.json.JSONObject;
  * Main activity for the libsoftwaresync demo app using the camera 2 API.
  */
 public class MainActivity extends Activity {
+    private MediaCodec encoder;
+    private MediaMuxer muxer;
+    private boolean muxerStarted = false;
+    private int trackIndex = -1;
     private static final String TAG = "MainActivity";
     private static final int STATIC_LEN = 15_000;
     private String lastTimeStamp;
@@ -671,7 +679,22 @@ public class MainActivity extends Activity {
         } else {
             Log.i(TAG, "YUV unavailable!");
         }
-        yuvImageResolution = Collections.max(yuvOutputSizes, new CompareSizesByArea());
+//        yuvImageResolution = Collections.max(yuvOutputSizes, new CompareSizesByArea());
+        // Prefer 1080p if available
+        Size preferredSize = null;
+        for (Size s : yuvOutputSizes) {
+            if (s.getWidth() == 1920 && s.getHeight() == 1080) {
+                preferredSize = s;
+                break;
+            }
+        }
+        if (preferredSize != null) {
+            yuvImageResolution = preferredSize;
+        } else {
+            // Fallback to max if 1080p not available
+            yuvImageResolution = Collections.max(yuvOutputSizes, new CompareSizesByArea());
+        }
+
         Log.i(TAG, "Chosen viewfinder resolution: " + viewfinderResolution);
 //    Log.i(TAG, "Chosen raw resolution: " + rawImageResolution);
         Log.i(TAG, "Chosen yuv resolution: " + yuvImageResolution);
@@ -960,13 +983,28 @@ public class MainActivity extends Activity {
     }
 
     private void createRecorderSurface() throws IOException {
-        surface = MediaCodec.createPersistentInputSurface();
+        encoder = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC);
 
-        MediaRecorder recorder = setUpMediaRecorder(surface, false);
-        recorder.prepare();
-        recorder.release();
-        deleteUnusedVideo();
+        MediaFormat format = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC,
+                yuvImageResolution.getWidth(),
+                yuvImageResolution.getHeight());
+
+        format.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface);
+        format.setInteger(MediaFormat.KEY_BIT_RATE, 5_000_000); // Customize as needed
+        format.setInteger(MediaFormat.KEY_FRAME_RATE, 30);
+        format.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1);
+        format.setInteger(MediaFormat.KEY_PROFILE, MediaCodecInfo.CodecProfileLevel.AVCProfileHigh);
+        format.setInteger(MediaFormat.KEY_LEVEL, MediaCodecInfo.CodecProfileLevel.AVCLevel4);
+
+        encoder.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
+        surface = encoder.createInputSurface();
+        encoder.start();
+
+        // Prepare muxer output path
+        lastVideoPath = getOutputMediaFilePath();
+        muxer = new MediaMuxer(lastVideoPath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4);
     }
+
 
     private MediaRecorder setUpMediaRecorder(Surface surface) throws IOException {
         return setUpMediaRecorder(surface, true);
@@ -1008,6 +1046,66 @@ public class MainActivity extends Activity {
     public boolean isVideoRecording() {
         return isVideoRecording;
     }
+    private void startDrainingEncoder() {
+        new Thread(() -> {
+            MediaCodec.BufferInfo bufferInfo = new MediaCodec.BufferInfo();
+
+            while (isVideoRecording) {
+                int outputBufferIndex = encoder.dequeueOutputBuffer(bufferInfo, 10000);
+
+                if (outputBufferIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+                    if (muxerStarted) throw new RuntimeException("Format changed twice");
+                    MediaFormat newFormat = encoder.getOutputFormat();
+                    trackIndex = muxer.addTrack(newFormat);
+                    muxer.start();
+                    muxerStarted = true;
+                } else if (outputBufferIndex >= 0) {
+                    ByteBuffer encodedData = encoder.getOutputBuffer(outputBufferIndex);
+
+                    if ((bufferInfo.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) {
+                        bufferInfo.size = 0;
+                    }
+
+                    if (bufferInfo.size != 0 && muxerStarted) {
+                        encodedData.position(bufferInfo.offset);
+                        encodedData.limit(bufferInfo.offset + bufferInfo.size);
+                        muxer.writeSampleData(trackIndex, encodedData, bufferInfo);
+                    }
+
+                    encoder.releaseOutputBuffer(outputBufferIndex, false);
+                }
+            }
+
+            // Final drain
+            encoder.signalEndOfInputStream();
+            boolean done = false;
+            while (!done) {
+                int outputBufferIndex = encoder.dequeueOutputBuffer(bufferInfo, 10000);
+                if (outputBufferIndex >= 0) {
+                    ByteBuffer encodedData = encoder.getOutputBuffer(outputBufferIndex);
+                    if (bufferInfo.size != 0 && muxerStarted) {
+                        encodedData.position(bufferInfo.offset);
+                        encodedData.limit(bufferInfo.offset + bufferInfo.size);
+                        muxer.writeSampleData(trackIndex, encodedData, bufferInfo);
+                    }
+                    encoder.releaseOutputBuffer(outputBufferIndex, false);
+                    if ((bufferInfo.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
+                        done = true;
+                    }
+                }
+            }
+
+            // Cleanup
+            encoder.stop();
+            encoder.release();
+            muxer.stop();
+            muxer.release();
+            if (mLogger != null) {
+                mLogger.close();
+                mLogger = null;
+            }
+        }).start();
+    }
 
     public void startVideo(boolean wantAutoExp) {
         Log.d(TAG, "Starting video.");
@@ -1015,16 +1113,10 @@ public class MainActivity extends Activity {
 
         isVideoRecording = true;
         try {
-            mediaRecorder = setUpMediaRecorder(surface);
             String filename = lastTimeStamp + ".csv";
             // Creates frame timestamps logger
-            try {
-                mLogger = new CSVLogger(SUBDIR_NAME, filename, this);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-            mediaRecorder.prepare();
-            Log.d(TAG, "MediaRecorder surface " + surface);
+            mLogger = new CSVLogger(SUBDIR_NAME, filename, this);
+
             CaptureRequest.Builder previewRequestBuilder =
                     cameraController
                             .getRequestFactory()
@@ -1038,11 +1130,12 @@ public class MainActivity extends Activity {
 
             captureSession.stopRepeating();
 
-            mediaRecorder.start();
             lastVideoSeqId = captureSession.setRepeatingRequest(
                     previewRequestBuilder.build(),
                     cameraController.getSynchronizerCaptureCallback(),
                     cameraHandler);
+            startDrainingEncoder();
+
         } catch (CameraAccessException e) {
             Log.w(TAG, "Unable to create video request.");
         } catch (IOException e) {

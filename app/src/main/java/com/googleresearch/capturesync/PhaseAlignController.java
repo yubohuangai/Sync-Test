@@ -126,7 +126,7 @@ public class PhaseAlignController {
             Log.v(TAG, "Queued another phase align step.");
             // TODO (samansari) : Replace this brittle delay-based solution to a response-based one.
             handler.postDelayed(
-                    () -> work(iterationsLeft - 1), PHASE_SETTLE_DELAY_MS); // Try again after it settles.
+                     () -> work(iterationsLeft - 1), PHASE_SETTLE_DELAY_MS); // Try again after it settles.
         } else { // Reached max iterations before aligned.
             Log.i(
                     TAG,

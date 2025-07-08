@@ -394,7 +394,6 @@ public class ImageMetadataSynchronizer {
           public void onCaptureSequenceCompleted(@NonNull CameraCaptureSession session, int sequenceId, long frameNumber) {
             super.onCaptureSequenceCompleted(session, sequenceId, frameNumber);
             if (context.getLastVideoSeqId() != null && sequenceId == context.getLastVideoSeqId() && context.getLogger() != null) {
-              context.getMediaRecorder().stop();
 
               if (context.isVideoRecording()) {
                 context.setVideoRecording(false);
@@ -402,11 +401,6 @@ public class ImageMetadataSynchronizer {
                 // MediaRecorder created an empty video on preview, should perform a cleanup
                   context.deleteUnusedVideo();
               }
-
-              context.getMediaRecorder().reset();
-
-              context.getLogger().close();
-              context.setLogger(null);
             }
           }
         };
