@@ -1,6 +1,6 @@
 # Synchronized Video Recorder for Android
 This work is based on [Sub-millisecond Video Synchronization of Multiple Android Smartphones](https://arxiv.org/abs/2107.00987)
-test
+
 ## Usage:
 ### Leader smartphone setup
 1. Insert a SIM card.
