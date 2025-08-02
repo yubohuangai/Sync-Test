@@ -23,7 +23,6 @@ This work is based on [Sub-millisecond Video Synchronization of Multiple Android
 
 ## Contribution
 
----
 ### Stable and Consistent Video Encoding with High Profile H.264
 
 #### Problem
@@ -39,7 +38,6 @@ Timestamps were previously logged only during onCaptureCompleted and only while 
 #### Solution
 We fixed this by delaying the logger shutdown. Specifically, we moved the cleanup logic to occur after releasing the encoder and muxer in startDrainingEncoder().
 
----
 ## Reference
 [Sub-millisecond Video Synchronization of Multiple Android Smartphones](https://arxiv.org/abs/2107.00987)
 
