@@ -19,7 +19,8 @@ This work is based on [Sub-millisecond Video Synchronization of Multiple Android
 4. Press the ```record video``` button to start the synchronized video recording.
 5. Press the ```record video``` button again to stop recording.
 6. Restart the app before each recording.
-7. Get videos from RecSync folder in smartphone root directory.
+7. Connect the phone to a computer and get videos from RecSync folder in smartphone root directory.
+8. Process the output with [Multiview-Motion-Capture-Data-Processing](https://github.com/yubohuangai/Multiview-Motion-Capture-Data-Processing)
 
 ## Contribution
 
