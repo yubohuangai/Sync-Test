@@ -20,7 +20,7 @@ This work is based on [Sub-millisecond Video Synchronization of Multiple Android
 5. Press the ```record video``` button again to stop recording.
 6. Restart the app before each recording.
 7. Connect the phone to a computer and get videos from RecSync folder in smartphone root directory.
-8. Process the output with [Multiview-Motion-Capture-Data-Processing](https://github.com/yubohuangai/Multiview-Motion-Capture-Data-Processing)
+8. Process the output with [Multiview-Motion-Capture-Data-Processing](https://github.com/yubohuangai/Multiview-Motion-Capture-Data-Processing).
 
 ## Contribution
 
@@ -40,5 +40,5 @@ Timestamps were previously logged only during onCaptureCompleted and only while 
 We fixed this by delaying the logger shutdown. Specifically, we moved the cleanup logic to occur after releasing the encoder and muxer in startDrainingEncoder().
 
 ## Reference
-[Sub-millisecond Video Synchronization of Multiple Android Smartphones](https://arxiv.org/abs/2107.00987)
+[Sub-millisecond Video Synchronization of Multiple Android Smartphones](https://arxiv.org/abs/2107.00987).
 
