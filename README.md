@@ -1,69 +1,45 @@
-![Logo](https://imgur.com/YtJA0E2.png)
+# Synchronized Video Recorder for Android
+This work is based on [Sub-millisecond Video Synchronization of Multiple Android Smartphones](https://arxiv.org/abs/2107.00987)
 
-If you use this application, please cite [Sub-millisecond Video Synchronization of Multiple Android Smartphones](https://arxiv.org/abs/2107.00987):
-```
-@misc{akhmetyanov2021submillisecond,
-      title={Sub-millisecond Video Synchronization of Multiple Android Smartphones}, 
-      author={Azat Akhmetyanov and Anastasiia Kornilova and Marsel Faizullin and David Pozo and Gonzalo Ferrer},
-      year={2021},
-      eprint={2107.00987},
-      archivePrefix={arXiv},
-      primaryClass={cs.CV}
-}
-```
-### Usage:
+## Usage:
+### Leader smartphone setup
+1. Insert a SIM card.
+2. Disable WiFi.
+2. Enable the mobile hotspot.
+4. The app should display connected clients and buttons for recording control.
 
+### Client smartphones setup
+1. Enable WiFi.
+2. Connect to the hotspot from leader.
 
-#### Leader smartphone setup
+### Recording video
+1. Press the ```calculate period``` button. The app will analyze the frame stream and use the calculated frame period in subsequent synchronization steps.
+2. Adjust exposure and ISO as needed.
+3. Press the ```phase align``` button and wait until the ```Phase Error``` showed on each device converges.
+4. Press the ```record video``` button to start the synchronized video recording.
+5. Press the ```record video``` button again to stop recording.
+6. Restart the app before each recording.
+7. Get videos from RecSync folder in smartphone root directory.
 
-1.  Start a Wi-Fi hotspot.
-2.  The app should display connected clients and buttons for recording control
+## Contribution
 
-#### Client smartphones setup
+---
+### Stable and Consistent Video Encoding with High Profile H.264
 
-1.  Enable WiFi and connect to the Wi-Fi hotspot.
+#### Problem
+MediaRecorder may automatically select different H.264 encoding profiles across devices, even for the same phone model. This inconsistency can result in excessively high bitrates, which slow down the encoding process and lead to frame drops.
+#### Solution
+By replacing MediaRecorder with MediaCodec and MediaMuxer, and explicitly setting the H.264 codec to High Profile, we ensure uniform encoder behavior across devices and drop-free video recording.
 
-#### Recording video
+---
+### Accurate Timestamp Logging for All Encoded Frames
 
-1.  [Optional step] Press the ```calculate period``` button. The app will analyze frame stream and use the calculated frame period in further synchronization steps.
-2.  Adjust exposure and ISO to your needs.
-3.  Press the ```phase align``` button.
-4.  Press the ```record video``` button to start synchronized video recording.
-5.  Get videos from RecSync folder in smartphone root directory.
+#### Problem
+Timestamps were previously logged only during onCaptureCompleted and only while isVideoRecording=true. However, the camera may continue encoding a few trailing frames after isVideoRecording is set to false. These final frames were being recorded without timestamps.
+#### Solution
+We fixed this by delaying the logger shutdown. Specifically, we moved the cleanup logic to occur after releasing the encoder and muxer in startDrainingEncoder().
 
-#### Extraction and matching of the frames
+---
+## Reference
+[Sub-millisecond Video Synchronization of Multiple Android Smartphones](https://arxiv.org/abs/2107.00987)
 
-```
-Requirements:
-
-- Python
-- ffmpeg
-```
-
-1. Navigate to ```utils``` directory in the repository.
-2. Run ```./match.sh <VIDEO_1> <VIDEO_2>```.
-3. Frames will be extracted to directories ```output/1``` and ```output/2``` with timestamps in filenames, output directory will also contain ```match.csv``` file in the following format:
-    ```
-    timestamp_1(ns) timestamp_2(ns)
-    ```
-
-### Our contribution:
-
-- Integrated **synchronized video recording**
-- Scripts for extraction, alignment and processing of video frames
-- Experiment with flash blinking to evaluate video frames synchronization accuracy
-- Panoramic video demo with automated Hugin stitching
-
-### Panoramic video stitching demo
-
-### [Link to youtube demo video](https://youtu.be/W6iANtCuQ-o)
-
-- We provide scripts to **stitch 2 syncronized smatphone videos** with Hujin panorama CLI tools
-- Usage:
-    - Run ```./make_demo.sh {VIDEO_LEFT} {VIDEO_RIGHT}```
-
-### This work is based on "Wireless Software Synchronization of Multiple Distributed Cameras"
-
-Reference code for the paper
-[Wireless Software Synchronization of Multiple Distributed Cameras](https://arxiv.org/abs/1812.09366).
-_Sameer Ansari, Neal Wadhwa, Rahul Garg, Jiawen Chen_, ICCP 2019.

@@ -1100,6 +1100,8 @@ public class MainActivity extends Activity {
             encoder.release();
             muxer.stop();
             muxer.release();
+
+            // Close the logger after encoder and muxer are stopped
             if (mLogger != null) {
                 mLogger.close();
                 mLogger = null;

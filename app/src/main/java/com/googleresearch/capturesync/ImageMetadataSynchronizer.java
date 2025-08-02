@@ -401,6 +401,9 @@ public class ImageMetadataSynchronizer {
                 // MediaRecorder created an empty video on preview, should perform a cleanup
                   context.deleteUnusedVideo();
               }
+              // Shouldn't close logger here.
+//               context.getLogger().close();
+//               context.setLogger(null);
             }
           }
         };
